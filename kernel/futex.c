@@ -446,7 +446,7 @@ static void get_futex_key_refs(union futex_key *key)
 		smp_mb();		/* explicit smp_mb(); (B) */
 		break;
 	case FUT_OFF_MMSHARED:
-		futex_get_mm(key); /* implies smp_mb(); (B) */
+		smp_mb(); /* explicit smp_mb(); (B) */
 		break;
 	default:
 		/*
@@ -479,7 +479,6 @@ static void drop_futex_key_refs(union futex_key *key)
 	case FUT_OFF_INODE:
 		break;
 	case FUT_OFF_MMSHARED:
-		mmdrop(key->private.mm);
 		break;
 	}
 }
