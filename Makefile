@@ -301,10 +301,10 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 
-HOSTCC       = gcc -flto=4
+HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -flto=4 -fomit-frame-pointer -std=gnu89 -fgcse-las -fgraphite -fgraphite-identity -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
-HOSTCXXFLAGS = -O3 -flto=4 -fgcse-las -fgraphite -fgraphite-identity -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O3 -fomit-frame-pointer -std=gnu89 -fgcse-las -fgraphite -fgraphite-identity -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
+HOSTCXXFLAGS = -O3 -fgcse-las -fgraphite -fgraphite-identity -floop-flatten -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
 
 ifeq ($(shell $(HOSTCC) -v 2>&1 | grep -c "clang version"), 1)
 HOSTCFLAGS  += -Wno-unused-value -Wno-unused-parameter \
@@ -390,12 +390,22 @@ LINUXINCLUDE    := \
 LINUXINCLUDE	+= $(filter-out $(LINUXINCLUDE),$(USERINCLUDE))
 
 KBUILD_AFLAGS   := -D__ASSEMBLY__
+
+LTO_CFLAGS 	=  -flto -flto=jobserver -fno-fat-lto-objects \
+                   -fuse-linker-plugin -fwhole-program
+
+REGR_FIXFLAGS   =  --param=max-inline-insns-auto=1000 \
+		   --param=inline-min-speedup=15 \
+		   --param=max-inline-insns-single=200 \
+		   --param=max-inline-insns-auto=30 \
+		   --param=early-inlining-insns=14
+
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common -fshort-wchar \
 		   -Werror-implicit-function-declaration \
-		   -Wno-format-security -ffast-math -mtune=cortex-a53 -mcpu=cortex-a53+crc+crypto  \
-		   -std=gnu89 -O3 
-KBUILD_CPPFLAGS := -D__KERNEL__ -O3 -mtune=cortex-a53 -mcpu=cortex-a53+crc+crypto 
+		   -Wno-format-security -ffast-math -march=armv8-a+crc+crypto -mtune=cortex-a53 -mcpu=cortex-a53+crc+crypto  \
+		   -std=gnu89 -O3 $(REGR_FIXFLAGS) #$(LTO_CFLAGS)
+KBUILD_CPPFLAGS := -D__KERNEL__ -O3 -march=armv8-a+crc+crypto -mtune=cortex-a53 -mcpu=cortex-a53+crc+crypto 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__ -O3
@@ -407,6 +417,10 @@ GCC_PLUGINS_CFLAGS :=
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
+
+LTO_LDFLAGS   := $(LTO_CFLAGS) -Wno-lto-type-mismatch -Wno-psabi \
+                  -Wno-stringop-overflow -flinker-output=nolto-rel
+LDFINAL_vmlinux = $(LD) #$(LTO_LDFLAGS)
 
 export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION
 export ARCH SRCARCH CONFIG_SHELL HOSTCC HOSTCFLAGS CROSS_COMPILE AS LD CC
@@ -522,9 +536,11 @@ CLANG_FLAGS	+= -no-integrated-as
 CLANG_FLAGS	+= -Werror=unknown-warning-option
 KBUILD_CFLAGS	+= $(CLANG_FLAGS)
 KBUILD_AFLAGS	+= $(CLANG_FLAGS)
+endif
+
 KBUILD_CFLAGS += $(call cc-disable-warning, maybe-uninitialized)
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-variable)
-endif
+	 
 
 ifeq ($(mixed-targets),1)
 # ===========================================================================
@@ -946,7 +962,7 @@ KBUILD_CFLAGS   += $(ARCH_CFLAGS)   $(KCFLAGS)
 LDFLAGS_BUILD_ID = $(patsubst -Wl$(comma)%,%,\
 			      $(call cc-ldoption, -Wl$(comma)--build-id,))
 KBUILD_LDFLAGS_MODULE += $(LDFLAGS_BUILD_ID)
-LDFLAGS_vmlinux += $(LDFLAGS_BUILD_ID) -flto
+LDFLAGS_vmlinux += $(LDFLAGS_BUILD_ID) 
 
 ifdef CONFIG_LD_DEAD_CODE_DATA_ELIMINATION
 LDFLAGS_vmlinux	+= $(call ld-option, --gc-sections,)
