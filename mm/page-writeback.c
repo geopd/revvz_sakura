@@ -87,7 +87,7 @@ int vm_highmem_is_dirtyable;
 /*
  * The generator of dirty data starts writeback at this percentage
  */
-int vm_dirty_ratio = 80;
+int vm_dirty_ratio = 40;
 
 /*
  * vm_dirty_bytes starts at 0 (disabled) so that it is a function of
@@ -98,7 +98,7 @@ unsigned long vm_dirty_bytes;
 /*
  * The interval between `kupdate'-style writebacks
  */
-unsigned int dirty_writeback_interval = 5 * 100; /* centiseconds */
+unsigned int dirty_writeback_interval; /* centiseconds */
 
 EXPORT_SYMBOL_GPL(dirty_writeback_interval);
 
@@ -2732,7 +2732,6 @@ int test_clear_page_writeback(struct page *page)
 	} else {
 		ret = TestClearPageWriteback(page);
 	}
-
 	/*
 	 * NOTE: Page might be free now! Writeback doesn't hold a page
 	 * reference on its own, it relies on truncation to wait for
@@ -2740,7 +2739,8 @@ int test_clear_page_writeback(struct page *page)
 	 * page state that is static across allocation cycles.
 	 */
 	if (ret) {
-		mem_cgroup_dec_stat(memcg, MEM_CGROUP_STAT_WRITEBACK);
+		__mem_cgroup_update_page_stat(page, memcg,
+					      MEM_CGROUP_STAT_WRITEBACK, -1);
 		dec_node_page_state(page, NR_WRITEBACK);
 		dec_zone_page_state(page, NR_ZONE_WRITE_PENDING);
 		inc_node_page_state(page, NR_WRITTEN);

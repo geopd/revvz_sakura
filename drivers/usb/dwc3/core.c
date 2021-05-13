@@ -1305,7 +1305,7 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	spin_lock_init(&dwc->lock);
 
-	dwc->dwc_wq = alloc_ordered_workqueue("dwc_wq", WQ_HIGHPRI);
+	dwc->dwc_wq = alloc_ordered_workqueue("dwc_wq", 0);
 	if (!dwc->dwc_wq) {
 		pr_err("%s: Unable to create workqueue dwc_wq\n", __func__);
 		goto err0;
@@ -1412,9 +1412,9 @@ static int dwc3_remove(struct platform_device *pdev)
 
 	destroy_workqueue(dwc->dwc_wq);
 
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_allow(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	pm_runtime_put_noidle(&pdev->dev);
+	pm_runtime_set_suspended(&pdev->dev);
 
 	dwc3_free_event_buffers(dwc);
 	dwc3_free_scratch_buffers(dwc);
